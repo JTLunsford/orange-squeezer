@@ -1,0 +1,46 @@
+{
+	"name": "hash-miner",
+	"version": "0.0.0",
+	"description": "",
+	"main": "dist/index.js",
+	"repository": "",
+	"author": "josh@decodingideas.com",
+	"dependencies": {
+		"babel-cli": "^6.24.1",
+		"babel-plugin-transform-object-rest-spread": "^6.23.0",
+		"babel-preset-env": "^1.5.2",
+		"html-webpack-plugin": "^2.29.0",
+		"lodash": "^4.17.4",
+		"node-fetch": "^1.7.1",
+		"node-static": "^0.7.9",
+		"nodemon": "^1.11.0",
+		"socket.io": "^2.0.3",
+		"socket.io-client": "^2.0.3",
+		"webpack": "^3.0.0"
+	},
+	"scripts": {
+		"babel": "rm -rf dist && babel src --out-dir dist",
+		"start": "yarn babel && yarn webpack && node dist/index.js",
+		"webpack": "webpack",
+		"live": "nodemon --watch src --exec \"yarn start\" ./src"
+	},
+	"babel": {
+		"plugins": [
+			"transform-object-rest-spread"
+		],
+		"ignore": [
+			"foo.js",
+			"bar/**/*.js"
+		],
+		"presets": [
+			[
+				"env",
+				{
+					"targets": {
+						"node": "current"
+					}
+				}
+			]
+		]
+	}
+}
