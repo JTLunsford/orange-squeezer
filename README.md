@@ -1,1 +1,1 @@
-# hash-miner
+# orange-squeezer

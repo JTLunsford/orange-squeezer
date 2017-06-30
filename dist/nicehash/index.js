@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
 	value: true
 });
-exports.createOrder = exports.poolInfo = exports.getProfits = exports.getMyOrders = exports.getOrders = exports.algo = exports.pool = undefined;
+exports.startOrder = exports.createOrder = exports.poolInfo = exports.getProfits = exports.getMyOrders = exports.getOrders = exports.algo = exports.locations = undefined;
 
 var _nodeFetch = require('node-fetch');
 
@@ -41,7 +41,7 @@ const convertResults = results => ({
 	bestStandardPrice: _lodash2.default.last(_lodash2.default.filter(results.result.orders, order => order.workers !== 0))
 });
 
-const pool = exports.pool = {
+const locations = exports.locations = {
 	europe: addValue(locationTuple, 0),
 	usa: addValue(locationTuple, 1)
 };
@@ -71,17 +71,17 @@ const getProfits = exports.getProfits = location => {
 	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json());
 };
 
-const poolInfo = exports.poolInfo = () => Promise.all([getOrders(algo.daggerhashimoto, pool.europe).then(convertResults), getOrders(algo.daggerhashimoto, pool.usa).then(convertResults), getProfits(pool.europe).then(profits => _lodash2.default.find(profits.result.stats, algo => algo.algo === 20)), getProfits(pool.usa).then(profits => _lodash2.default.find(profits.result.stats, algo => algo.algo === 20))]).then(([europeOrders, usaOrders, europeProfits, usaProfits]) => ({ pools: [{
-		pool: pool.europe,
+const poolInfo = exports.poolInfo = () => Promise.all([getOrders(algo.daggerhashimoto, locations.europe).then(convertResults), getOrders(algo.daggerhashimoto, locations.usa).then(convertResults), getProfits(locations.europe).then(profits => _lodash2.default.find(profits.result.stats, algo => algo.algo === 20)), getProfits(locations.usa).then(profits => _lodash2.default.find(profits.result.stats, algo => algo.algo === 20))]).then(([europeOrders, usaOrders, europeProfits, usaProfits]) => ({ pools: [{
+		pool: locations.europe,
 		orders: europeOrders,
 		profits: europeProfits
 	}, {
-		pool: pool.usa,
+		pool: locations.usa,
 		orders: usaOrders,
 		profits: usaProfits
 	}] }));
 
-const createOrder = exports.createOrder = (log, config, amount, price, limit, location = pool.usa, orderAlgo = algo.daggerhashimoto) => {
+const createOrder = exports.createOrder = (log, config, amount, price, limit, location = locations.usa, orderAlgo = algo.daggerhashimoto) => {
 	const orderLimit = addValue(limitTuple, limit || config.nicehash.startLimit);
 	const orderPrice = addValue(priceTuple, price);
 	const orderAmount = addValue(amountTuple, amount);
@@ -101,3 +101,18 @@ const createOrder = exports.createOrder = (log, config, amount, price, limit, lo
 		return json;
 	});
 };
+
+const startOrder = exports.startOrder = (btc, log, config) => poolInfo().then(data => {
+	const europe = _lodash2.default.find(data.pools, pool => pool.pool[1] === locations.europe[1]);
+	const usa = _lodash2.default.find(data.pools, pool => pool.pool[1] === locations.usa[1]);
+
+	const targetPool = parseInt(europe.orders.bestStandardPrice.price) < parseInt(usa.orders.bestStandardPrice.price) ? europe : usa;
+
+	log(`Starting Price in ${targetPool.pool[1]} pool: ${targetPool.orders.bestStandardPrice.price}`);
+	log(`Creating order`);
+	return createOrder(log, config, btc, parseInt(targetPool.orders.bestStandardPrice.price));
+}).then(orderCreated => {
+	console.log('order', orderCreated);
+}).catch(err => {
+	console.log('err', err);
+});

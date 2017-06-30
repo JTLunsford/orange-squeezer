@@ -1,41 +1,42 @@
 'use strict'
 
 import {log} from './http'
-import {
-	poolInfo, 
-	getMyOrders,
-	algo,
-	pool as locations,
-	createOrder
-} from './nicehash'
+import {startOrder} from './nicehash'
+import {tradeEthToBtc, refillNicehash} from './gdax'
 import config from './config'
 import _ from 'lodash'
 
-setTimeout(() => {
-	//log(config)
-	poolInfo().then(data => {
-		const europe = _.find(data.pools, pool => pool.pool[1] === locations.europe[1])
-		const usa = _.find(data.pools, pool => pool.pool[1] === locations.usa[1])
-		
-		const targetPool = parseInt(europe.orders.bestStandardPrice.price) < parseInt(usa.orders.bestStandardPrice.price) ? europe : usa
+//Trade all ETH to BTC every 10 minutes if larger than 0.01
+const tradeLoop = () => {
+	tradeEthToBtc(config).then(log).catch(log)
+	setTimeout(() => tradeLoop(), 1000 * 60 * 10)
+}
+tradeLoop()
 
-		log(`Starting Price in ${targetPool.pool[1]} pool: ${targetPool.orders.bestStandardPrice.price}`)
-		log(`Creating order`)
-		return createOrder(log, config,0.1, parseInt(targetPool.orders.bestStandardPrice.price))
-	}).then(orderCreated => {
-		console.log('order',orderCreated)
-	}).catch( err => {
-		console.log('err',err)
-	})
-},5000)
+//Transfer all BTC to Nicehash every 10 minutes if larger than 0.01
+const moveToNicehashLoop = () => {
+	refillNicehash(config).then(log).catch(log)
+	setTimeout(() => moveToNicehashLoop(), 1000 * 60 * 10)
+}
+moveToNicehashLoop()
 
-console.log(`See output on: http://atlminers-hash-miner-jtlunsford.c9users.io/index.html`)
+//Every 10 minutes if Nicehash available balance larger than 0.01 check if open order, refill, if not open an order
+const fillLoop = () => {
+	//TODO: refill or order
+	setTimeout(() => fillLoop(), 1000 * 60 * 10)
+}
+fillLoop()
 
-// 1. gdax > withdraw/crypto api X amount of BTC to nicehash BTC wallet
-// 2. nicehash > balance api = {"result":{"balance_confirmed":"0.00500000","balance_pending":"0.00000000"},"method":"balance"}
-// 3. nicehash > create order api
-// 4. nicehash > adjust price and limits for Y hours
-// 5. nicehash > monitor order until closed or we cancel after Y hours
-// 6. nanopool > monitor until unconfirmed_balance is 0.0(assuming all money is in GDAX ETH wallet)
-// 7. gdax > trade ETH > BTC = X btc(original amount)
-// <repeat> (edited)
+//Every 11 minutes check for best price +1 is lower than you, then decrease
+const decreaseLoop = () => {
+	//TODO: decrease
+	setTimeout(() => decreaseLoop(), 1000 * 60 * 11)
+}
+decreaseLoop()
+
+//Every minute check if zero miners, if none, raise to best price + 1
+const increaseLoop = () => {
+	//TODO: increase
+	setTimeout(() => increaseLoop(), 1000 * 60)
+}
+increaseLoop()

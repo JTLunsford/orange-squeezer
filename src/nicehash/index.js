@@ -32,7 +32,7 @@ const convertResults = results => ({
 	bestStandardPrice: _.last(_.filter(results.result.orders, order => order.workers !== 0))
 })
 
-export const pool = {
+export const locations = {
 	europe: addValue(locationTuple, 0),
 	usa: addValue(locationTuple, 1)
 }
@@ -66,25 +66,25 @@ export const getProfits = location => {
 }
 
 export const poolInfo = () => Promise.all([
-	getOrders(algo.daggerhashimoto, pool.europe).then(convertResults),
-	getOrders(algo.daggerhashimoto, pool.usa).then(convertResults),
-	getProfits(pool.europe).then(profits => _.find(profits.result.stats, algo => algo.algo === 20)),
-	getProfits(pool.usa).then(profits => _.find(profits.result.stats, algo => algo.algo === 20))
+	getOrders(algo.daggerhashimoto, locations.europe).then(convertResults),
+	getOrders(algo.daggerhashimoto, locations.usa).then(convertResults),
+	getProfits(locations.europe).then(profits => _.find(profits.result.stats, algo => algo.algo === 20)),
+	getProfits(locations.usa).then(profits => _.find(profits.result.stats, algo => algo.algo === 20))
 ])
 .then(([europeOrders, usaOrders, europeProfits, usaProfits]) => ({pools:[
 	{
-		pool:pool.europe,
+		pool:locations.europe,
 		orders: europeOrders,
 		profits: europeProfits
 	},
 	{
-		pool:pool.usa,
+		pool:locations.usa,
 		orders: usaOrders,
 		profits: usaProfits
 	}
 ]}))
 
-export const createOrder = (log, config, amount, price, limit, location = pool.usa, orderAlgo = algo.daggerhashimoto) => {
+export const createOrder = (log, config, amount, price, limit, location = locations.usa, orderAlgo = algo.daggerhashimoto) => {
 	const orderLimit = addValue(limitTuple, limit || config.nicehash.startLimit)
 	const orderPrice = addValue(priceTuple, price)
 	const orderAmount = addValue(amountTuple, amount)
@@ -117,3 +117,18 @@ export const createOrder = (log, config, amount, price, limit, location = pool.u
 			return json
 		})
 }
+
+export const startOrder = (btc, log, config) => poolInfo().then(data => {
+	const europe = _.find(data.pools, pool => pool.pool[1] === locations.europe[1])
+	const usa = _.find(data.pools, pool => pool.pool[1] === locations.usa[1])
+	
+	const targetPool = parseInt(europe.orders.bestStandardPrice.price) < parseInt(usa.orders.bestStandardPrice.price) ? europe : usa
+
+	log(`Starting Price in ${targetPool.pool[1]} pool: ${targetPool.orders.bestStandardPrice.price}`)
+	log(`Creating order`)
+	return createOrder(log, config, btc, parseInt(targetPool.orders.bestStandardPrice.price))
+}).then(orderCreated => {
+	console.log('order',orderCreated)
+}).catch(err => {
+	console.log('err',err)
+})
