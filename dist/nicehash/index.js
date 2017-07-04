@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
 	value: true
 });
-exports.startOrder = exports.createOrder = exports.poolInfo = exports.getProfits = exports.getMyOrders = exports.getOrders = exports.algo = exports.locations = undefined;
+exports.decreasePrice = exports.increasePrice = exports.fill = exports.setPriceDecrease = exports.setOrderPrice = exports.adjustLimit = exports.refillOrder = exports.getTimeSpanEstimate = exports.getLimitByHours = exports.checkBalance = exports.startOrder = exports.createOrder = exports.poolInfo = exports.getProfits = exports.getMyOrders = exports.getOrders = exports.algo = exports.locations = undefined;
 
 var _nodeFetch = require('node-fetch');
 
@@ -19,6 +19,11 @@ const baseUrl = `https://api.nicehash.com/api?`;
 const getOrdersTuple = ['method', 'orders.get'];
 const getProfitsTuple = ['method', 'stats.global.current'];
 const createOrderTuple = ['method', 'orders.create'];
+const refillOrderTuple = ['method', 'orders.refill'];
+const limitOrderTuple = ['method', 'orders.set.limit'];
+const setPriceTuple = ['method', 'orders.set.price'];
+const decreasePriceTuple = ['method', 'orders.set.price.decrease'];
+const balanceTuple = ['method', 'balance'];
 const locationTuple = ['location'];
 const algoTuple = ['algo'];
 const apiIdTuple = ['id'];
@@ -30,6 +35,7 @@ const poolHostTuple = ['pool_host'];
 const poolPortTuple = ['pool_port'];
 const poolUserTuple = ['pool_user'];
 const poolPassTuple = ['pool_pass'];
+const orderTuple = ['order'];
 
 const getQueryFromTuple = tuple => tuple instanceof Array ? `${tuple[0]}=${tuple[1]}` : tuple;
 const getArrayOfQueryStringValues = opts => opts.map(getQueryFromTuple).join("&");
@@ -40,6 +46,8 @@ const convertResults = results => ({
 	miners: results.result.orders.reduce((memo, order) => memo + order.workers, 0),
 	bestStandardPrice: _lodash2.default.last(_lodash2.default.filter(results.result.orders, order => order.workers !== 0))
 });
+
+const trimFloat = float => _lodash2.default.round(parseFloat(float), 8);
 
 const locations = exports.locations = {
 	europe: addValue(locationTuple, 0),
@@ -53,15 +61,13 @@ const algo = exports.algo = {
 const getOrders = exports.getOrders = (algo, location) => {
 	let api = [getOrdersTuple, algo];
 	api = location ? api.concat([location]) : api;
-	console.log(getApiUrl(api));
 	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json());
 };
 
-const getMyOrders = exports.getMyOrders = (algo, location, config) => {
-	let api = [getOrdersTuple, algo];
-	api = location ? api.concat([location]) : api;
-	api = api.concat(['my', addValue(apiIdTuple, config.apiId), addValue(apiKeyTuple, config.readOnlyApiKey)]);
-	console.log(getApiUrl(api));
+const getMyOrders = exports.getMyOrders = (location, config) => {
+	let api = [getOrdersTuple, algo.daggerhashimoto, location];
+	api = addCreds(api, config);
+	api = api.concat(['my']);
 	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json());
 };
 
@@ -81,10 +87,10 @@ const poolInfo = exports.poolInfo = () => Promise.all([getOrders(algo.daggerhash
 		profits: usaProfits
 	}] }));
 
-const createOrder = exports.createOrder = (log, config, amount, price, limit, location = locations.usa, orderAlgo = algo.daggerhashimoto) => {
-	const orderLimit = addValue(limitTuple, limit || config.nicehash.startLimit);
-	const orderPrice = addValue(priceTuple, price);
-	const orderAmount = addValue(amountTuple, amount);
+const createOrder = exports.createOrder = (config, amount, price, limit, location = locations.usa, orderAlgo = algo.daggerhashimoto) => {
+	const orderLimit = addValue(limitTuple, trimFloat(limit) || config.nicehash.startLimit);
+	const orderPrice = addValue(priceTuple, trimFloat(price));
+	const orderAmount = addValue(amountTuple, trimFloat(amount));
 
 	//TODO: Add on pool info
 
@@ -95,24 +101,105 @@ const createOrder = exports.createOrder = (log, config, amount, price, limit, lo
 
 	let api = [createOrderTuple, location, orderAlgo, orderAmount, orderLimit, orderPrice, orderPoolHost, orderPoolPort, orderPoolUser, orderPoolPass];
 	api = addCreds(api, config);
-	log(getApiUrl(api));
+
+	console.log(getApiUrl(api));
 	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json()).then(json => {
 		if (json.result.error) throw new Error(json.result.error);
 		return json;
 	});
 };
 
-const startOrder = exports.startOrder = (btc, log, config) => poolInfo().then(data => {
-	const europe = _lodash2.default.find(data.pools, pool => pool.pool[1] === locations.europe[1]);
-	const usa = _lodash2.default.find(data.pools, pool => pool.pool[1] === locations.usa[1]);
-
-	const targetPool = parseInt(europe.orders.bestStandardPrice.price) < parseInt(usa.orders.bestStandardPrice.price) ? europe : usa;
-
-	log(`Starting Price in ${targetPool.pool[1]} pool: ${targetPool.orders.bestStandardPrice.price}`);
-	log(`Creating order`);
-	return createOrder(log, config, btc, parseInt(targetPool.orders.bestStandardPrice.price));
+const startOrder = exports.startOrder = (btc, location, config) => poolInfo().then(data => {
+	const targetPool = _lodash2.default.find(data.pools, pool => pool.pool[1] === location[1]);
+	console.log(targetPool);
+	console.log(`Starting Price in ${targetPool.pool[1]} pool: ${targetPool.orders.bestStandardPrice.price}`);
+	console.log(`Creating order`);
+	const bestPrice = trimFloat(trimFloat(targetPool.orders.bestStandardPrice.price) + 0.0001);
+	console.log(`Best Price: ${bestPrice}`);
+	const limit = getLimitByHours(bestPrice, btc, config.nicehash.timespan);
+	console.log(`Selected Limit: ${limit}`);
+	return createOrder(config, btc, bestPrice, limit, targetPool.pool);
 }).then(orderCreated => {
 	console.log('order', orderCreated);
 }).catch(err => {
 	console.log('err', err);
 });
+
+const checkBalance = exports.checkBalance = config => {
+	let api = [balanceTuple];
+	api = addCreds(api, config);
+	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json());
+};
+
+const getLimitByHours = exports.getLimitByHours = (price, amount, hours) => amount / price * 24 / hours;
+
+const getTimeSpanEstimate = exports.getTimeSpanEstimate = (price, amount, limit) => amount / limit / price * 24;
+
+const refillOrder = exports.refillOrder = (btc, id, location, config) => {
+	let api = [refillOrderTuple, location, algo.daggerhashimoto, addValue(amountTuple, trimFloat(btc)), addValue(orderTuple, id)];
+	api = addCreds(api, config);
+	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json()).then(json => {
+		if (json.result.error) throw new Error(json.result.error);
+		return json;
+	});
+};
+
+const adjustLimit = exports.adjustLimit = (order, location, config) => {
+	let api = [limitOrderTuple, location, algo.daggerhashimoto, addValue(orderTuple, order.id), addValue(limitTuple, trimFloat(getLimitByHours(order.price, order.btc_avail, config.nicehash.timespan)))];
+	api = addCreds(api, config);
+	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json()).then(json => {
+		if (json.result.error) throw new Error(json.result.error);
+		return json;
+	});
+};
+
+const setOrderPrice = exports.setOrderPrice = (id, price, location, config) => {
+	let api = [setPriceTuple, location, algo.daggerhashimoto, addValue(orderTuple, id), addValue(priceTuple, trimFloat(price))];
+	api = addCreds(api, config);
+	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json()).then(json => {
+		if (json.result.error) throw new Error(json.result.error);
+		return json;
+	});
+};
+
+const setPriceDecrease = exports.setPriceDecrease = (id, location, config) => {
+	let api = [decreasePriceTuple, location, algo.daggerhashimoto, addValue(orderTuple, id)];
+	api = addCreds(api, config);
+	return (0, _nodeFetch2.default)(getApiUrl(api)).then(res => res.json()).then(json => {
+		if (json.result.error) throw new Error(json.result.error);
+		return json;
+	});
+};
+
+const fill = exports.fill = (location, config) => checkBalance(config, location = locations.usa).then(balance => {
+	console.log(balance.result);
+	const confirmedBalance = trimFloat(balance.result.balance_confirmed);
+	if (confirmedBalance > 0.01) return getMyOrders(location, config).then(({ result: { orders } }) => {
+		if (orders.length === 0) return startOrder(confirmedBalance, location, config);else return refillOrder(confirmedBalance, pool.orders[0].id, location, config).then(json => {
+			if (json.result.error) throw new Error(`refill order error: ${json.result.error}`);else return adjustLimit(pool.orders[0], location, config);
+		});
+	}).catch(({ message }) => console.log(`GET MY ORDERS ERROR: ${message}`));else throw new Error(`low balance ${confirmedBalance}`);
+}).catch(({ message }) => `LOW NICEHASH BALANCE: ${message}`);
+
+const increasePrice = exports.increasePrice = (location, config) => getMyOrders(location, config).then(({ result: { orders } }) => {
+	if (orders.length === 0) throw new Error(`no orders to increase`);else return poolInfo().then(data => {
+		console.log(orders[0]);
+		const targetPool = _lodash2.default.find(data.pools, pool => pool.pool[1] === location[1]);
+		const bestPrice = trimFloat(trimFloat(targetPool.orders.bestStandardPrice.price) + 0.0001);
+		const orderPrice = trimFloat(orders[0].price);
+		console.log(`Current Order Price: ${orderPrice}`);
+		console.log(`Best Price: ${bestPrice}`);
+		if (orderPrice < bestPrice) return setOrderPrice(orders[0].id, bestPrice, location, config);else return `price is fine - no increase`;
+	});
+}).catch(({ message }) => `INCREASE PRICE ERROR: ${message}`);
+
+const decreasePrice = exports.decreasePrice = (location, config) => getMyOrders(location, config).then(({ result: { orders } }) => {
+	if (orders.length === 0) throw new Error(`no orders to decrease`);else return poolInfo().then(data => {
+		const targetPool = _lodash2.default.find(data.pools, pool => pool.pool[1] === location[1]);
+		const bestPrice = trimFloat(trimFloat(targetPool.orders.bestStandardPrice.price) + 0.0001);
+		const orderPrice = trimFloat(orders[0].price);
+		console.log(`Current Order Price: ${orderPrice}`);
+		console.log(`Best Price: ${bestPrice}`);
+		if (orderPrice > bestPrice) return setPriceDecrease(orders[0].id, location, config);else return `price is fine - no decrease`;
+	});
+}).catch(({ message }) => `DECREASE PRICE ERROR: ${message}`);

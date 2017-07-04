@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
 	value: true
 });
-exports.log = undefined;
+exports.connect = undefined;
 
 var _fs = require('fs');
 
@@ -23,34 +23,44 @@ var _path = require('path');
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-console.log((0, _path.join)(__dirname, '../'));
+const connect = exports.connect = () => new Promise((resolve, reject) => {
 
-const fileServer = new _nodeStatic.Server((0, _path.join)(__dirname, '../'));
-const fsReadFile = (0, _util.promisify)(_fs2.default.readFile);
+	console.log((0, _path.join)(__dirname, '../'));
 
-const handler = (req, res) => {
-	console.log(req.url);
-	if (req.url === '/') {
-		res.writeHead(301, {
-			Location: "http" + (req.socket.encrypted ? "s" : "") + "://" + req.headers.host + '/index.html'
+	const fileServer = new _nodeStatic.Server((0, _path.join)(__dirname, '../'));
+	const fsReadFile = (0, _util.promisify)(_fs2.default.readFile);
+
+	const handler = (req, res) => {
+		console.log(req.url);
+		if (req.url === '/') {
+			res.writeHead(301, {
+				Location: "http" + (req.socket.encrypted ? "s" : "") + "://" + req.headers.host + '/index.html'
+			});
+			res.end();
+		} else {
+			req.addListener('end', function () {
+				fileServer.serve(req, res);
+			}).resume();
+		}
+	};
+
+	const app = (0, _http.createServer)(handler);
+	const io = (0, _socket2.default)(app);
+	app.listen(process.env.C9_PORT || 8080);
+
+	let connectedOnce = false;
+
+	const log = msg => {
+		console.log(msg);
+		io.sockets.emit('event', typeof msg === 'object' ? JSON.stringify(msg) : msg);
+	};
+
+	io.on('connection', socket => {
+		if (!connectedOnce) resolve({
+			log
 		});
-		res.end();
-	} else {
-		req.addListener('end', function () {
-			fileServer.serve(req, res);
-		}).resume();
-	}
-};
 
-const app = (0, _http.createServer)(handler);
-const io = (0, _socket2.default)(app);
-app.listen(process.env.C9_PORT || 8080);
-
-io.on('connection', socket => {
-	console.log('client connected');
+		connectedOnce = true;
+		console.log('client connected');
+	});
 });
-
-const log = exports.log = msg => {
-	console.log(msg);
-	io.sockets.emit('event', typeof msg === 'object' ? JSON.stringify(msg) : msg);
-};

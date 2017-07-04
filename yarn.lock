@@ -905,6 +905,10 @@ cliui@^3.2.0:
     strip-ansi "^3.0.1"
     wrap-ansi "^2.0.0"
 
+cloc@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/cloc/-/cloc-2.2.0.tgz#ee38e476fd050edc1d2ef8357cbde274b7c7efb4"
+
 co@^4.6.0:
   version "4.6.0"
   resolved "https://registry.yarnpkg.com/co/-/co-4.6.0.tgz#6ea6bdf3d853ae54ccb8e47bfa0bf3f9031fb184"

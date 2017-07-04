@@ -1,5 +1,5 @@
 {
-	"name": "hash-miner",
+	"name": "orange-squeezer",
 	"version": "0.0.0",
 	"description": "",
 	"main": "dist/index.js",
@@ -9,6 +9,7 @@
 		"babel-cli": "^6.24.1",
 		"babel-plugin-transform-object-rest-spread": "^6.23.0",
 		"babel-preset-env": "^1.5.2",
+		"cloc": "^2.2.0",
 		"html-webpack-plugin": "^2.29.0",
 		"lodash": "^4.17.4",
 		"node-fetch": "^1.7.1",
@@ -20,7 +21,7 @@
 	},
 	"scripts": {
 		"babel": "rm -rf dist && babel src --out-dir dist",
-		"start": "yarn babel && yarn webpack && node dist/index.js",
+		"start": "yarn babel && yarn webpack && cloc src && node dist/index.js",
 		"webpack": "webpack",
 		"live": "nodemon --watch src --exec \"yarn start\" ./src"
 	},

@@ -8,7 +8,7 @@ exports.default = {
 		apiId: process.env.NH_API_ID || '',
 		apiKey: process.env.NH_API_KEY || '',
 		readOnlyApiKey: process.env.NH_READ_ONLY_API_KEY || '',
-		startLimit: process.env.START_LIMIT || '50',
+		timespan: process.env.TIMESPAN || 8,
 		btcAddress: process.env.NH_BTC_ADDRESS || ''
 	},
 	gdax: {
