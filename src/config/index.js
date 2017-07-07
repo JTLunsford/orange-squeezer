@@ -1,11 +1,12 @@
 'use strict'
 
 export default {
+	maxHashrate: 150,
 	nicehash:{
 		apiId: process.env.NH_API_ID || '',
 		apiKey: process.env.NH_API_KEY || '',
 		readOnlyApiKey: process.env.NH_READ_ONLY_API_KEY || '',
-		timespan: process.env.TIMESPAN || 8,
+		timespan: process.env.TIMESPAN || 24,
 		btcAddress: process.env.NH_BTC_ADDRESS || ''
 	},
 	gdax:{

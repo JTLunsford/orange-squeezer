@@ -3,7 +3,7 @@
 Object.defineProperty(exports, "__esModule", {
 	value: true
 });
-exports.decreasePrice = exports.increasePrice = exports.fill = exports.setPriceDecrease = exports.setOrderPrice = exports.adjustLimit = exports.refillOrder = exports.getTimeSpanEstimate = exports.getLimitByHours = exports.checkBalance = exports.startOrder = exports.createOrder = exports.poolInfo = exports.getProfits = exports.getMyOrders = exports.getOrders = exports.algo = exports.locations = undefined;
+exports.adjustPrice = exports.fill = exports.setPriceDecrease = exports.setOrderPrice = exports.adjustLimit = exports.refillOrder = exports.getTimeSpanEstimate = exports.getLimitByHours = exports.checkBalance = exports.startOrder = exports.createOrder = exports.poolInfo = exports.getProfits = exports.getMyOrders = exports.getOrders = exports.algo = exports.locations = undefined;
 
 var _nodeFetch = require('node-fetch');
 
@@ -181,25 +181,18 @@ const fill = exports.fill = (location, config) => checkBalance(config, location 
 	}).catch(({ message }) => console.log(`GET MY ORDERS ERROR: ${message}`));else throw new Error(`low balance ${confirmedBalance}`);
 }).catch(({ message }) => `LOW NICEHASH BALANCE: ${message}`);
 
-const increasePrice = exports.increasePrice = (location, config) => getMyOrders(location, config).then(({ result: { orders } }) => {
-	if (orders.length === 0) throw new Error(`no orders to increase`);else return poolInfo().then(data => {
-		console.log(orders[0]);
+const adjustPrice = exports.adjustPrice = (location, config) => getMyOrders(location, config).then(({ result: { orders } }) => {
+	if (orders.length === 0) throw new Error(`no orders to adjust`);else return Promise.all(orders.map(order => poolInfo().then(data => {
 		const targetPool = _lodash2.default.find(data.pools, pool => pool.pool[1] === location[1]);
 		const bestPrice = trimFloat(trimFloat(targetPool.orders.bestStandardPrice.price) + 0.0001);
-		const orderPrice = trimFloat(orders[0].price);
+		const orderPrice = trimFloat(order.price);
 		console.log(`Current Order Price: ${orderPrice}`);
 		console.log(`Best Price: ${bestPrice}`);
-		if (orderPrice < bestPrice) return setOrderPrice(orders[0].id, bestPrice, location, config);else return `price is fine - no increase`;
-	});
-}).catch(({ message }) => `INCREASE PRICE ERROR: ${message}`);
-
-const decreasePrice = exports.decreasePrice = (location, config) => getMyOrders(location, config).then(({ result: { orders } }) => {
-	if (orders.length === 0) throw new Error(`no orders to decrease`);else return poolInfo().then(data => {
-		const targetPool = _lodash2.default.find(data.pools, pool => pool.pool[1] === location[1]);
-		const bestPrice = trimFloat(trimFloat(targetPool.orders.bestStandardPrice.price) + 0.0001);
-		const orderPrice = trimFloat(orders[0].price);
-		console.log(`Current Order Price: ${orderPrice}`);
-		console.log(`Best Price: ${bestPrice}`);
-		if (orderPrice > bestPrice) return setPriceDecrease(orders[0].id, location, config);else return `price is fine - no decrease`;
-	});
-}).catch(({ message }) => `DECREASE PRICE ERROR: ${message}`);
+		const priceDifference = orderPrice - bestPrice;
+		const priceIsPerfect = orderPrice === bestPrice;
+		const priceIsLow = orderPrice < bestPrice;
+		const priceIsHigh = orderPrice > bestPrice;
+		const priceIsTooHigh = orderPrice > bestPrice + 0.0005;
+		if (priceIsPerfect) return `price is fine - no adjustment`;else if (priceIsLow) return setOrderPrice(order.id, bestPrice, location, config);else if (priceIsTooHigh) return setPriceDecrease(order.id, location, config);else if (priceIsHigh) return `price is high but not adjusting: ${priceDifference}`;
+	})));
+}).catch(({ message }) => `ADJUST PRICE ERROR: ${message}`);

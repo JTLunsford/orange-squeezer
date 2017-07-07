@@ -233,30 +233,23 @@ export const fill = (location, config) => checkBalance(config, location = locati
 	else throw new Error(`low balance ${confirmedBalance}`)
 }).catch(({message}) => `LOW NICEHASH BALANCE: ${message}`)
 
-export const increasePrice = (location, config) => getMyOrders(location, config).then(({result:{orders}}) => {
-	if(orders.length === 0) throw new Error(`no orders to increase`)
-	else return poolInfo().then(data => {
-		console.log(orders[0])
+export const adjustPrice = (location, config) => getMyOrders(location, config).then(({result:{orders}}) => {
+	if(orders.length === 0) throw new Error(`no orders to adjust`)
+	else return Promise.all(orders.map(order => poolInfo().then(data => {
 		const targetPool = _.find(data.pools, pool => pool.pool[1] === location[1])
 		const bestPrice = trimFloat(trimFloat(targetPool.orders.bestStandardPrice.price) + 0.0001)
-		const orderPrice = trimFloat(orders[0].price)
+		const orderPrice = trimFloat(order.price)
 		console.log(`Current Order Price: ${orderPrice}`)
 		console.log(`Best Price: ${bestPrice}`)
-		if(orderPrice < bestPrice) return setOrderPrice(orders[0].id, bestPrice, location, config)
-		else return `price is fine - no increase`
-	})
-}).catch(({message}) => `INCREASE PRICE ERROR: ${message}`)
-
-export const decreasePrice = (location, config) => getMyOrders(location, config).then(({result:{orders}}) => {
-	if(orders.length === 0) throw new Error(`no orders to decrease`)
-	else return poolInfo().then(data => {
-		const targetPool = _.find(data.pools, pool => pool.pool[1] === location[1])
-		const bestPrice = trimFloat(trimFloat(targetPool.orders.bestStandardPrice.price) + 0.0001)
-		const orderPrice = trimFloat(orders[0].price)
-		console.log(`Current Order Price: ${orderPrice}`)
-		console.log(`Best Price: ${bestPrice}`)
-		if(orderPrice > bestPrice) return setPriceDecrease(orders[0].id, location, config)
-		else return `price is fine - no decrease`
-	})
-}).catch(({message}) => `DECREASE PRICE ERROR: ${message}`)
+		const priceDifference = orderPrice - bestPrice
+		const priceIsPerfect = orderPrice === bestPrice
+		const priceIsLow = orderPrice < bestPrice
+		const priceIsHigh = orderPrice > bestPrice
+		const priceIsTooHigh = orderPrice > bestPrice + 0.0005
+		if(priceIsPerfect) return `price is fine - no adjustment`
+		else if(priceIsLow) return setOrderPrice(order.id, bestPrice, location, config)
+		else if(priceIsTooHigh) return setPriceDecrease(order.id, location, config)
+		else if(priceIsHigh) return `price is high but not adjusting: ${priceDifference}`
+	})))
+}).catch(({message}) => `ADJUST PRICE ERROR: ${message}`)
 	

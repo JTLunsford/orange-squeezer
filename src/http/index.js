@@ -43,10 +43,14 @@ export const connect = () => new Promise((resolve, reject) => {
 		console.log(msg)
 		io.sockets.emit('event', typeof msg === 'object' ? JSON.stringify(msg) : msg)
 	}
+	const wealth = wot => {
+		io.sockets.emit('wot', typeof msg === 'object' ? JSON.stringify(wot) : wot)
+	}
 
 	io.on('connection', socket => {
 		if(!connectedOnce) resolve({
-			log
+			log,
+			wealth
 		})
 		
 		connectedOnce = true
